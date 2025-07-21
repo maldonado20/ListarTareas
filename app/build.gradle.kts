@@ -18,17 +18,7 @@ android {
     }
 
     buildFeatures {
-        viewBinding = true  // la agregue para usar binding en layouts
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
+        viewBinding = true
     }
 
     compileOptions {
@@ -48,10 +38,8 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.7.2")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
 
-    implementation("androidx.cardview:cardview:1.0.0")
-
     implementation("androidx.recyclerview:recyclerview:1.3.0")
-    implementation("com.google.code.gson:gson:2.10.1")  // guardar objetos como JSON
+    implementation("com.google.code.gson:gson:2.10.1")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

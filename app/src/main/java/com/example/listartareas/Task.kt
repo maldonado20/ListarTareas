@@ -1,8 +1,9 @@
 package com.example.listartareas
 
-data class Task(
-    var name: String,
-    var completed: Boolean = false,
-    var category: String? = "Otro",
-    var dueDate: String? = null
+data class Tarea(
+    var descripcion: String,
+    var completada: Boolean = false,
+    var fechaLimite: String = "",
+    var categoria: String = ""
+
 )

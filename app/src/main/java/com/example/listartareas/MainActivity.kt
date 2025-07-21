@@ -1,124 +1,150 @@
 package com.example.listartareas
 
+import android.app.AlertDialog
+import android.content.Context
 import android.os.Bundle
 import android.widget.*
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.listartareas.databinding.ActivityMainBinding
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityMainBinding
-    private val tasks = mutableListOf<Task>()
-    private lateinit var adapter: TaskAdapter
+    private lateinit var listaTareasView: ListView
+
+    private lateinit var botonAgregarTarea: Button
+
+    private lateinit var entradaDescripcion: EditText
+
+    private var listaTareas = mutableListOf<Tarea>()
+
+    private lateinit var adaptadorTareas: AdaptadorTareas
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        listaTareasView = findViewById(R.id.listaTareas)
+        botonAgregarTarea = findViewById(R.id.botonAgregar)
+        entradaDescripcion = findViewById(R.id.entradaDescripcion)
 
-        // Cargar tareas guardadas
-        tasks.addAll(TaskRepository.loadTasks(this))
+        cargarLista()
 
-        // Inicializar adaptador
-        adapter = TaskAdapter(
-            tasks,
-            onTaskChecked = { position, isChecked ->
-                tasks[position].completed = isChecked
-                TaskRepository.saveTasks(this, tasks)
-            },
-            onEditClick = { position -> showEditDialog(position) },
-            onDeleteClick = { position ->
-                tasks.removeAt(position)
-                adapter.notifyItemRemoved(position)
-                TaskRepository.saveTasks(this, tasks)
+        adaptadorTareas = AdaptadorTareas(this, listaTareas) {
+            guardarLista()
+        }
+        listaTareasView.adapter = adaptadorTareas
+
+        botonAgregarTarea.setOnClickListener {
+            val texto = entradaDescripcion.text.toString().trim()
+            if (texto.isBlank()) {
+                Toast.makeText(this, "Escribe una tarea antes de agregar", Toast.LENGTH_SHORT).show()
+            } else {
+                mostrarDialogoAgregar(texto)
+                entradaDescripcion.text.clear()
             }
-        )
+        }
 
-        // Configurar RecyclerView
-        binding.rvTasks.layoutManager = LinearLayoutManager(this)
-        binding.rvTasks.adapter = adapter
-
-        // Botón para agregar nueva tarea
-        binding.btnAddTask.setOnClickListener {
-            showAddDialog()
+        listaTareasView.setOnItemClickListener { _, _, posicion, _ ->
+            mostrarDialogoEditar(listaTareas[posicion], posicion)
         }
     }
 
-    private fun showAddDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_task, null)
-        val etTaskName = dialogView.findViewById<EditText>(R.id.etTaskName)
-        val spinnerCategory = dialogView.findViewById<Spinner>(R.id.spinnerCategory)
-        val etDueDate = dialogView.findViewById<EditText>(R.id.etDueDate)
+    private fun guardarLista() {
+        val prefs = getSharedPreferences("tareas_app", Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        val gson = Gson()
+        val json = gson.toJson(listaTareas)
+        editor.putString("lista_tareas", json)
+        editor.apply()
+    }
 
-        val categories = listOf("Trabajo", "Personal", "Otro")
-        val adapterSpinner = ArrayAdapter(this, android.R.layout.simple_spinner_item, categories)
-        adapterSpinner.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerCategory.adapter = adapterSpinner
+    private fun cargarLista() {
+        val prefs = getSharedPreferences("tareas_app", Context.MODE_PRIVATE)
+        val gson = Gson()
+        val json = prefs.getString("lista_tareas", null)
+        val tipo = object : TypeToken<MutableList<Tarea>>() {}.type
+        listaTareas = gson.fromJson(json, tipo) ?: mutableListOf()
+    }
+
+    private fun ordenarLista() {
+        listaTareas.sortWith(compareBy({ it.categoria }, { it.descripcion }))
+    }
+
+    fun mostrarDialogoAgregar(descripcionInicial: String) {
+        val vistaDialogo = layoutInflater.inflate(R.layout.dialog_task, null)
+        val entradaDesc = vistaDialogo.findViewById<EditText>(R.id.editDescripcion)
+        val entradaFecha = vistaDialogo.findViewById<EditText>(R.id.editFecha)
+        val spinnerCategoria = vistaDialogo.findViewById<Spinner>(R.id.spinnerCategoria)
+
+        entradaDesc.setText(descripcionInicial)
+
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.array_categorias,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spinnerCategoria.adapter = adapter
+        }
 
         AlertDialog.Builder(this)
-            .setTitle("Agregar tarea")
-            .setView(dialogView)
-            .setPositiveButton("Agregar") { dialog, _ ->
-                val name = etTaskName.text.toString().trim()
-                val category = spinnerCategory.selectedItem.toString()
-                val dueDate = etDueDate.text.toString().trim()
+            .setTitle("Nueva Tarea")
+            .setView(vistaDialogo)
+            .setPositiveButton("Agregar") { _, _ ->
+                val descripcion = entradaDesc.text.toString().trim()
+                val categoria = spinnerCategoria.selectedItem.toString()
+                val fecha = entradaFecha.text.toString().trim()
 
-                if (name.isNotEmpty()) {
-                    tasks.add(Task(name, false, category, if (dueDate.isNotEmpty()) dueDate else null))
-                    adapter.notifyItemInserted(tasks.size - 1)
-                    TaskRepository.saveTasks(this, tasks)
-                } else {
-                    Toast.makeText(this, "La tarea no puede estar vacía", Toast.LENGTH_SHORT).show()
-                }
-                dialog.dismiss()
+                val nuevaTarea = Tarea(descripcion, false, fecha, categoria)
+                listaTareas.add(nuevaTarea)
+                ordenarLista()
+                adaptadorTareas.notifyDataSetChanged()
+                guardarLista()
             }
-            .setNegativeButton("Cancelar") { dialog, _ -> dialog.dismiss() }
+            .setNegativeButton("Cancelar", null)
             .show()
     }
 
-    private fun showEditDialog(position: Int) {
-        val task = tasks[position]
-        val dialogView = layoutInflater.inflate(R.layout.dialog_task, null)
-        val etTaskName = dialogView.findViewById<EditText>(R.id.etTaskName)
-        val spinnerCategory = dialogView.findViewById<Spinner>(R.id.spinnerCategory)
-        val etDueDate = dialogView.findViewById<EditText>(R.id.etDueDate)
+    fun mostrarDialogoEditar(tarea: Tarea, posicion: Int) {
+        val vistaDialogo = layoutInflater.inflate(R.layout.dialog_task, null)
+        val entradaDesc = vistaDialogo.findViewById<EditText>(R.id.editDescripcion)
+        val entradaFecha = vistaDialogo.findViewById<EditText>(R.id.editFecha)
+        val spinnerCategoria = vistaDialogo.findViewById<Spinner>(R.id.spinnerCategoria)
 
-        etTaskName.setText(task.name)
-        etDueDate.setText(task.dueDate ?: "")
+        entradaDesc.setText(tarea.descripcion)
+        entradaFecha.setText(tarea.fechaLimite)
 
-        val categories = listOf("Trabajo", "Personal", "Otro")
-        val adapterSpinner = ArrayAdapter(this, android.R.layout.simple_spinner_item, categories)
-        adapterSpinner.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerCategory.adapter = adapterSpinner
-
-        val categoryIndex = categories.indexOf(task.category ?: "Otro")
-        spinnerCategory.setSelection(if (categoryIndex >= 0) categoryIndex else 2)
+        ArrayAdapter.createFromResource(
+            this,
+            R.array.array_categorias,
+            android.R.layout.simple_spinner_item
+        ).also { adapter ->
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spinnerCategoria.adapter = adapter
+            if (tarea.categoria.isNotEmpty()) {
+                val pos = adapter.getPosition(tarea.categoria)
+                spinnerCategoria.setSelection(pos)
+            }
+        }
 
         AlertDialog.Builder(this)
-            .setTitle("Editar tarea")
-            .setView(dialogView)
-            .setPositiveButton("Guardar") { dialog, _ ->
-                val newName = etTaskName.text.toString().trim()
-                val newCategory = spinnerCategory.selectedItem.toString()
-                val newDueDate = etDueDate.text.toString().trim()
-
-                if (newName.isNotEmpty()) {
-                    task.name = newName
-                    task.category = newCategory
-                    task.dueDate = if (newDueDate.isNotEmpty()) newDueDate else null
-                    adapter.notifyItemChanged(position)
-                    TaskRepository.saveTasks(this, tasks)
-                } else {
-                    Toast.makeText(this, "La tarea no puede estar vacía", Toast.LENGTH_SHORT).show()
-                }
-
-                dialog.dismiss()
+            .setTitle("Editar Tarea")
+            .setView(vistaDialogo)
+            .setPositiveButton("Guardar") { _, _ ->
+                tarea.descripcion = entradaDesc.text.toString().trim()
+                tarea.fechaLimite = entradaFecha.text.toString().trim()
+                tarea.categoria = spinnerCategoria.selectedItem.toString()
+                ordenarLista()
+                adaptadorTareas.notifyDataSetChanged()
+                guardarLista()
             }
-            .setNegativeButton("Cancelar") { dialog, _ -> dialog.dismiss() }
+            .setNegativeButton("Cancelar", null)
+            .setNeutralButton("Eliminar") { _, _ ->
+                listaTareas.removeAt(posicion)
+                adaptadorTareas.notifyDataSetChanged()
+                guardarLista()
+            }
             .show()
     }
 }
-

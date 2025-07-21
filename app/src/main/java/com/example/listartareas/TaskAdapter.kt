@@ -1,68 +1,61 @@
 package com.example.listartareas
 
+import android.content.Context
 import android.graphics.Paint
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
-import androidx.recyclerview.widget.RecyclerView
-import com.example.listartareas.databinding.ItemTaskBinding
+import android.widget.*
 
-class TaskAdapter(
-    private val tasks: MutableList<Task>,
-    private val onTaskChecked: (Int, Boolean) -> Unit,
-    private val onEditClick: (Int) -> Unit,
-    private val onDeleteClick: (Int) -> Unit
-) : RecyclerView.Adapter<TaskAdapter.TaskViewHolder>() {
+class AdaptadorTareas(
+    private val contexto: Context,
+    private val tareas: MutableList<Tarea>,
+    private val onCambio: () -> Unit
+) : ArrayAdapter<Tarea>(contexto, 0, tareas) {
 
-    inner class TaskViewHolder(val binding: ItemTaskBinding) : RecyclerView.ViewHolder(binding.root) {
-        init {
-            binding.cbTask.setOnCheckedChangeListener { _, isChecked ->
-                val pos = adapterPosition
-                if (pos != RecyclerView.NO_POSITION) {
-                    onTaskChecked(pos, isChecked)
-                    updateTaskStyle(binding.tvTaskName, isChecked)
-                }
-            }
+    override fun getView(posicion: Int, vistaReciclada: View?, padre: ViewGroup): View {
+        val vista = vistaReciclada ?: LayoutInflater.from(contexto)
+            .inflate(R.layout.elemento_tarea, padre, false)
 
-            binding.btnEdit.setOnClickListener {
-                val pos = adapterPosition
-                if (pos != RecyclerView.NO_POSITION) {
-                    onEditClick(pos)
-                }
-            }
+        val tarea = tareas[posicion]
 
-            binding.btnDelete.setOnClickListener {
-                val pos = adapterPosition
-                if (pos != RecyclerView.NO_POSITION) {
-                    onDeleteClick(pos)
-                }
-            }
+        val chkCompletada = vista.findViewById<CheckBox>(R.id.chkCompletada)
+        val txtDescripcion = vista.findViewById<TextView>(R.id.txtDescripcion)
+        val txtDetalles = vista.findViewById<TextView>(R.id.txtDetalles)
+        val btnEditar = vista.findViewById<ImageButton>(R.id.btnEditar)
+        val btnEliminar = vista.findViewById<ImageButton>(R.id.btnEliminar)
+
+        // Evitar disparar listener al hacer setChecked
+        chkCompletada.setOnCheckedChangeListener(null)
+        chkCompletada.isChecked = tarea.completada
+
+        txtDescripcion.text = tarea.descripcion
+
+        // Mostrar fecha de vencimiento y categoría juntos
+        txtDetalles.text = "vencimiento: ${tarea.fechaLimite} " + "| Categoría: ${tarea.categoria}"
+
+
+        txtDescripcion.paintFlags = if (tarea.completada)
+            txtDescripcion.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
+        else
+            txtDescripcion.paintFlags and Paint.STRIKE_THRU_TEXT_FLAG.inv()
+
+        chkCompletada.setOnCheckedChangeListener { _, isChecked ->
+            tarea.completada = isChecked
+            notifyDataSetChanged()
+            onCambio()
         }
-    }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TaskViewHolder {
-        val binding = ItemTaskBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return TaskViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: TaskViewHolder, position: Int) {
-        val task = tasks[position]
-        holder.binding.tvTaskName.text = task.name
-        holder.binding.cbTask.isChecked = task.completed
-        holder.binding.tvCategory.text = "Categoría: ${task.category ?: "Otro"}"
-        holder.binding.tvDueDate.text = "Fecha de vencimiento: ${task.dueDate ?: "-"}"
-        updateTaskStyle(holder.binding.tvTaskName, task.completed)
-    }
-
-    override fun getItemCount(): Int = tasks.size
-
-    private fun updateTaskStyle(textView: TextView, completed: Boolean) {
-        if (completed) {
-            textView.paintFlags = textView.paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
-            textView.setTextColor(textView.resources.getColor(android.R.color.darker_gray))
-        } else {
-            textView.paintFlags = textView.paintFlags and Paint.STRIKE_THRU_TEXT_FLAG.inv()
-            textView.setTextColor(textView.resources.getColor(android.R.color.black))
+        btnEliminar.setOnClickListener {
+            tareas.removeAt(posicion)
+            notifyDataSetChanged()
+            onCambio()
         }
+
+        btnEditar.setOnClickListener {
+            (contexto as MainActivity).mostrarDialogoEditar(tarea, posicion)
+        }
+
+        return vista
     }
 }

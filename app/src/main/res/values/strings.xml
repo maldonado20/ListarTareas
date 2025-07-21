@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">Listar Tareas</string>
+    <string-array name="array_categorias">
+        <item>Trabajo</item>
+        <item>Estudios</item>
+        <item>Personal</item>
+        <item>Deporte</item>
+        <item>Reuniones</item>
+        <item>Otros</item>
+    </string-array>
+
 </resources>
